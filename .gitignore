@@ -20,6 +20,10 @@ dist-ssr
 .wrangler/
 .dev.vars
 
+# Lovable scaffold
+.lovable/
+bun.lock
+
 # Python / backend
 iks-backend/__pycache__/
 iks-backend/*.pyc

@@ -19,15 +19,6 @@ import { ResolveModal } from "@/components/ResolveModal";
 
 export const Route = createFileRoute("/")({
   component: Index,
-  head: () => ({
-    meta: [
-      { title: "IKS Health · Agentic Workflow" },
-      {
-        name: "description",
-        content: "Agentic workflow management for medical appointment processing.",
-      },
-    ],
-  }),
 });
 
 function Index() {

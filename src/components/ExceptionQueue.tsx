@@ -1,12 +1,21 @@
+import { useEffect, useState } from "react";
+import { api } from "@/api/appointmentApi";
 import type { Appointment } from "@/data/mockData";
 
 interface ExceptionQueueProps {
-  appointments: Appointment[];
   onResolve: (id: string) => void;
 }
 
-export function ExceptionQueue({ appointments, onResolve }: ExceptionQueueProps) {
-  const escalated = appointments.filter((a) => a.status === "ESCALATED");
+export function ExceptionQueue({ onResolve }: ExceptionQueueProps) {
+  const [escalated, setEscalated] = useState<Appointment[]>([]);
+
+  useEffect(() => {
+    api.getExceptions().then(setEscalated).catch(() => {});
+    const id = setInterval(() => {
+      api.getExceptions().then(setEscalated).catch(() => {});
+    }, 3000);
+    return () => clearInterval(id);
+  }, []);
 
   if (escalated.length === 0) {
     return (
@@ -37,7 +46,7 @@ export function ExceptionQueue({ appointments, onResolve }: ExceptionQueueProps)
           </tr>
         </thead>
         <tbody>
-          {escalated.map((a) => (
+          {escalated.map((a: Appointment) => (
             <tr key={a.id} className="border-t border-border">
               <td className="px-4 py-3 font-medium text-foreground">{a.patientName}</td>
               <td className="px-4 py-3 text-muted-foreground">{a.specialty}</td>

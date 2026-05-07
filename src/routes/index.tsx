@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildInitialAppointment,
   initialAppointments,
@@ -9,6 +9,7 @@ import {
   type Appointment,
 } from "@/data/mockData";
 import { findResumeIndex, runPipeline } from "@/engine/workflowEngine";
+import { api, syncAppointment } from "@/api/appointmentApi";
 import { Navbar } from "@/components/Navbar";
 import { FilterBar, type Filters } from "@/components/FilterBar";
 import { AppointmentCard } from "@/components/AppointmentCard";
@@ -44,35 +45,84 @@ function Index() {
     sortBy: "score",
   });
 
-  // ref to read latest state inside async pipeline
-  const apptRef = useRef(appointments);
+  // ref so the async engine always reads the latest state
+  const apptRef = useRef<Appointment[]>(appointments);
   apptRef.current = appointments;
 
+  // Load from backend on mount; fall back to local seed if backend is down
+  useEffect(() => {
+    api.getAppointments().then(setAppointments).catch(() => {});
+  }, []);
+
+  // Poll every 3 s; keep local state only while both sides agree it's PROCESSING
+  // so that backend transitions (e.g. to ESCALATED) are never silently dropped.
+  useEffect(() => {
+    const id = setInterval(() => {
+      api
+        .getAppointments()
+        .then((fresh: Appointment[]) => {
+          setAppointments((prev: Appointment[]) =>
+            fresh.map((freshAppt: Appointment) => {
+              const local = prev.find((a: Appointment) => a.id === freshAppt.id);
+              if (local?.status === "PROCESSING" && freshAppt.status === "PROCESSING") return local;
+              return freshAppt;
+            }),
+          );
+        })
+        .catch(() => {});
+    }, 3000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Wrap update so every local state change is also persisted to the backend.
   const update = (id: string, updater: (a: Appointment) => Appointment) => {
-    setAppointments((prev) => prev.map((a) => (a.id === id ? updater(a) : a)));
+    setAppointments((prev: Appointment[]) =>
+      prev.map((a: Appointment) => {
+        if (a.id !== id) return a;
+        const next = updater(a);
+        syncAppointment(next); // fire-and-forget
+        return next;
+      }),
+    );
   };
 
   const startPipeline = (id: string, startIdx: number = 0) => {
-    runPipeline(id, startIdx, () => apptRef.current.find((a) => a.id === id), update);
+    runPipeline(
+      id,
+      startIdx,
+      () => apptRef.current.find((a: Appointment) => a.id === id),
+      update,
+    );
   };
 
   const handleStart = (id: string) => {
-    const a = appointments.find((x) => x.id === id);
+    const a = appointments.find((x: Appointment) => x.id === id);
     if (!a || a.status !== "NOT STARTED") return;
     startPipeline(id, 0);
   };
 
   const handleProcessAll = () => {
     appointments
-      .filter((a) => a.status === "NOT STARTED")
-      .forEach((a) => startPipeline(a.id, 0));
+      .filter((a: Appointment) => a.status === "NOT STARTED")
+      .forEach((a: Appointment) => startPipeline(a.id, 0));
   };
 
-  const handleResolve = (id: string, notes: string) => {
-    const appt = apptRef.current.find((a) => a.id === id);
+  const handleResolve = async (id: string, notes: string) => {
+    const appt = apptRef.current.find((a: Appointment) => a.id === id);
     if (!appt) return;
+
     const resumeIdx = findResumeIndex(appt);
-    update(id, (a) => {
+    setResolveId(null);
+
+    // Await backend confirmation before resuming — prevents race where frontend
+    // and backend both mutate stage state simultaneously.
+    try {
+      await api.resolveAppointment(id, notes);
+    } catch {
+      // backend unavailable — continue with local-only resolution
+    }
+
+    update(id, (a: Appointment) => {
       const stages = a.stages.map((s) =>
         s.status === "ESCALATE" ? { ...s, status: "COMPLETE" as const } : s,
       );
@@ -95,45 +145,42 @@ function Index() {
         ],
       };
     });
-    setResolveId(null);
     startPipeline(id, resumeIdx);
   };
 
   const specialties = useMemo(
-    () => Array.from(new Set(appointments.map((a) => a.specialty))).sort(),
+    () => Array.from(new Set(appointments.map((a: Appointment) => a.specialty))).sort(),
     [appointments],
   );
 
   const filtered = useMemo(() => {
-    let list = appointments.filter((a) => {
+    let list = appointments.filter((a: Appointment) => {
       if (filters.urgency !== "All" && a.urgency !== filters.urgency) return false;
       if (filters.specialty !== "All" && a.specialty !== filters.specialty) return false;
       if (filters.status !== "All" && a.status !== filters.status) return false;
       if (filters.priority !== "All") {
-        const p = priorityLabel(priorityScore(a));
-        if (p !== filters.priority) return false;
+        if (priorityLabel(priorityScore(a)) !== filters.priority) return false;
       }
       return true;
     });
 
-    list = [...list].sort((a, b) => {
+    list = [...list].sort((a: Appointment, b: Appointment) => {
       switch (filters.sortBy) {
-        case "score":
-          return priorityScore(b) - priorityScore(a);
-        case "urgency":
-          return URGENCY_WEIGHT[b.urgency] - URGENCY_WEIGHT[a.urgency];
-        case "denial":
-          return b.denialRisk - a.denialRisk;
-        case "wait":
-          return b.ageInQueue - a.ageInQueue;
+        case "score":   return priorityScore(b) - priorityScore(a);
+        case "urgency": return URGENCY_WEIGHT[b.urgency] - URGENCY_WEIGHT[a.urgency];
+        case "denial":  return b.denialRisk - a.denialRisk;
+        case "wait":    return b.ageInQueue - a.ageInQueue;
+        default:        return 0;
       }
     });
 
     return list;
   }, [appointments, filters]);
 
-  const openAppt = openId ? appointments.find((a) => a.id === openId) : null;
-  const resolveAppt = resolveId ? appointments.find((a) => a.id === resolveId) : null;
+  const openAppt = openId ? appointments.find((a: Appointment) => a.id === openId) : null;
+  const resolveAppt = resolveId
+    ? appointments.find((a: Appointment) => a.id === resolveId)
+    : null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -166,12 +213,12 @@ function Index() {
             </p>
 
             <div className="space-y-3">
-              {filtered.map((a) => (
+              {filtered.map((a: Appointment) => (
                 <AppointmentCard
                   key={a.id}
                   appt={a}
                   onStart={handleStart}
-                  onView={(id) => setOpenId(id)}
+                  onView={(id: string) => setOpenId(id)}
                 />
               ))}
               {filtered.length === 0 && (
@@ -189,10 +236,7 @@ function Index() {
                 Pipelines awaiting human resolution.
               </p>
             </div>
-            <ExceptionQueue
-              appointments={appointments}
-              onResolve={(id) => setResolveId(id)}
-            />
+            <ExceptionQueue onResolve={(id: string) => setResolveId(id)} />
           </>
         )}
       </main>
@@ -201,7 +245,7 @@ function Index() {
         <PipelineModal
           appt={openAppt}
           onClose={() => setOpenId(null)}
-          onResolve={(id) => {
+          onResolve={(id: string) => {
             setOpenId(null);
             setResolveId(id);
           }}

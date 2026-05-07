@@ -1,5 +1,13 @@
 # IKS Health — Agentic Workflow Management System
 
+## Links
+- **Live Demo:** https://med-route-helper.vercel.app
+- **API / Swagger Docs:** https://med-route-helper.onrender.com/docs
+- **GitHub:** https://github.com/Satwik4409/med-route-helper
+
+> Note: Backend is on Render's free tier — first load may take
+> 30–60 seconds to wake up. Everything runs normally after that.
+
 ## Screenshots (Local Frontend)
 
 Below are screenshots from the local frontend. I can add the actual PNG files into `public/screenshots/` if you confirm — for now the README includes the embedded placeholders.
@@ -11,9 +19,7 @@ Below are screenshots from the local frontend. I can add the actual PNG files in
 <img width="1422" height="907" alt="image" src="https://github.com/user-attachments/assets/4a5582c7-f8e1-4ac0-b3e4-908612176329" />
 
 
-## Links
-- **Live Demo:** [Vercel deployment in progress]
-- **GitHub:** https://github.com/Satwik4409/med-route-helper
+
 
 ---
 

@@ -235,13 +235,12 @@ Wait for ESCALATE, go to Exception Queue, resolve with notes, watch pipeline res
 
 Below are screenshots from the local frontend. I can add the actual PNG files into `public/screenshots/` if you confirm — for now the README includes the embedded placeholders.
 
-![Appointment Queue](public/screenshots/frontend-queue.png)
+<img width="1405" height="942" alt="image" src="https://github.com/user-attachments/assets/025692b6-4744-4032-ba3a-10065af6fc27" />
 
-![Pipeline Modal](public/screenshots/frontend-pipeline.png)
+<img width="1378" height="948" alt="image" src="https://github.com/user-attachments/assets/e7bc1205-8f86-4e11-b62a-bd5841cd4fb4" />
 
-![Exception Queue](public/screenshots/frontend-exception.png)
+<img width="1422" height="907" alt="image" src="https://github.com/user-attachments/assets/4a5582c7-f8e1-4ac0-b3e4-908612176329" />
 
-If you paste the screenshots here or upload them into the repository under `public/screenshots/` with the names above, I'll commit them and push so GitHub and Vercel serve them.
 
 
 ## Bug Fixes Applied

@@ -246,21 +246,6 @@ Wait for ESCALATE, go to Exception Queue, resolve with notes, watch pipeline res
 
 ---
 
-
-
-<p align="center">
-        <img src="https://github.com/user-attachments/assets/025692b6-4744-4032-ba3a-10065af6fc27" alt="Appointment Queue" style="max-width:100%;height:auto" />
-</p>
-
-<p align="center">
-        <img src="https://github.com/user-attachments/assets/e7bc1205-8f86-4e11-b62a-bd5841cd4fb4" alt="Pipeline Modal" style="max-width:100%;height:auto" />
-</p>
-
-<p align="center">
-        <img src="https://github.com/user-attachments/assets/4a5582c7-f8e1-4ac0-b3e4-908612176329" alt="Exception Queue" style="max-width:100%;height:auto" />
-</p>
-
-
 ## Bug Fixes Applied
 
 ✅ **Mixed Content Security** — API URL now uses environment variables (`VITE_API_URL`)  

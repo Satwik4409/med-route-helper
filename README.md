@@ -8,9 +8,7 @@
 > Note: Backend is on Render's free tier — first load may take
 > 30–60 seconds to wake up. Everything runs normally after that.
 
-## Screenshots (Local Frontend)
-
-Below are screenshots from the local frontend. I can add the actual PNG files into `public/screenshots/` if you confirm — for now the README includes the embedded placeholders.
+## Screenshots
 
 <img width="1405" height="942" alt="image" src="https://github.com/user-attachments/assets/025692b6-4744-4032-ba3a-10065af6fc27" />
 

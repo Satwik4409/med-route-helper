@@ -231,6 +231,19 @@ Wait for ESCALATE, go to Exception Queue, resolve with notes, watch pipeline res
 
 ---
 
+## Screenshots (Local Frontend)
+
+Below are screenshots from the local frontend. I can add the actual PNG files into `public/screenshots/` if you confirm — for now the README includes the embedded placeholders.
+
+![Appointment Queue](/screenshots/frontend-queue.png)
+
+![Pipeline Modal](/screenshots/frontend-pipeline.png)
+
+![Exception Queue](/screenshots/frontend-exception.png)
+
+If you paste the screenshots here or upload them into the repository under `public/screenshots/` with the names above, I'll commit them and push so GitHub and Vercel serve them.
+
+
 ## Bug Fixes Applied
 
 ✅ **Mixed Content Security** — API URL now uses environment variables (`VITE_API_URL`)  

@@ -39,11 +39,10 @@ function updateStage(appt: Appointment, idx: number, patch: Partial<Stage>): App
 async function processStage(
   apptId: string,
   stageIdx: number,
+  stageName: string,
   update: UpdateAppointment,
 ): Promise<{ escalated: boolean; stageName: string; reason?: string }> {
-  let stageName = "";
   update(apptId, (a) => {
-    stageName = a.stages[stageIdx].name;
     const next = updateStage(a, stageIdx, { status: "PROCESSING" });
     return pushLog(next, { time: nowTime(), text: `${stageName}: PROCESSING`, kind: "info" });
   });
@@ -101,7 +100,7 @@ export async function runPipeline(
         block.push(j);
         j++;
       }
-      const results = await Promise.all(block.map((idx) => processStage(apptId, idx, update)));
+      const results = await Promise.all(block.map((idx) => processStage(apptId, idx, stages[idx].name, update)));
       const failed = results.find((r) => r.escalated);
       if (failed) {
         update(apptId, (a) => ({
@@ -114,7 +113,7 @@ export async function runPipeline(
       }
       i = j;
     } else {
-      const res = await processStage(apptId, i, update);
+      const res = await processStage(apptId, i, stages[i].name, update);
       if (res.escalated) {
         update(apptId, (a) => ({
           ...a,

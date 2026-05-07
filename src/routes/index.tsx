@@ -55,7 +55,12 @@ function Index() {
           setAppointments((prev: Appointment[]) =>
             fresh.map((freshAppt: Appointment) => {
               const local = prev.find((a: Appointment) => a.id === freshAppt.id);
-              if (local?.status === "PROCESSING" && freshAppt.status === "PROCESSING") return local;
+              // Keep local state while backend hasn't caught up yet
+              const localAhead =
+                local?.status === "PROCESSING" ||
+                local?.status === "ESCALATED" ||
+                local?.status === "CLEARED";
+              if (localAhead && freshAppt.status === "PROCESSING") return local;
               return freshAppt;
             }),
           );

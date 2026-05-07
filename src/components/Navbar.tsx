@@ -1,13 +1,21 @@
 import type { Appointment } from "@/data/mockData";
+import { api } from "@/api/appointmentApi";
 
 interface NavbarProps {
   view: "dashboard" | "exceptions";
   onChange: (v: "dashboard" | "exceptions") => void;
   appointments: Appointment[];
+  onReset: () => void;
 }
 
-export function Navbar({ view, onChange, appointments }: NavbarProps) {
+export function Navbar({ view, onChange, appointments, onReset }: NavbarProps) {
   const exceptionCount = appointments.filter((a) => a.status === "ESCALATED").length;
+
+  const handleReset = async () => {
+    if (!confirm("Reset all appointments to NOT STARTED?")) return;
+    await api.resetAll();
+    onReset();
+  };
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background">
@@ -34,6 +42,13 @@ export function Navbar({ view, onChange, appointments }: NavbarProps) {
             Dashboard
           </button>
         </div>
+
+        <button
+          onClick={handleReset}
+          className="text-sm font-medium text-muted-foreground hover:text-destructive transition-colors"
+        >
+          Reset All
+        </button>
 
         <button
           onClick={() => onChange("exceptions")}

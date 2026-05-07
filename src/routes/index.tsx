@@ -180,7 +180,12 @@ function Index() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar view={view} onChange={setView} appointments={appointments} />
+      <Navbar
+        view={view}
+        onChange={setView}
+        appointments={appointments}
+        onReset={() => api.getAppointments().then(setAppointments).catch(() => {})}
+      />
 
       <main className="mx-auto max-w-7xl px-6 py-8">
         {view === "dashboard" ? (

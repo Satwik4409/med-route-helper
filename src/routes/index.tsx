@@ -60,7 +60,10 @@ function Index() {
                 local?.status === "PROCESSING" ||
                 local?.status === "ESCALATED" ||
                 local?.status === "CLEARED";
-              if (localAhead && freshAppt.status === "PROCESSING") return local;
+              // Keep local state if it has progressed past what the backend knows yet.
+              // Without this, a poll arriving before the sync PATCH completes would
+              // overwrite ESCALATED/CLEARED back to NOT_STARTED.
+              if (localAhead && freshAppt.status !== "ESCALATED" && freshAppt.status !== "CLEARED") return local;
               return freshAppt;
             }),
           );
@@ -237,7 +240,10 @@ function Index() {
                 Pipelines awaiting human resolution.
               </p>
             </div>
-            <ExceptionQueue onResolve={(id: string) => setResolveId(id)} />
+            <ExceptionQueue
+              appointments={appointments.filter((a: Appointment) => a.status === "ESCALATED")}
+              onResolve={(id: string) => setResolveId(id)}
+            />
           </>
         )}
       </main>

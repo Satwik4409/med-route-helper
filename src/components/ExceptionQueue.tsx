@@ -1,21 +1,11 @@
-import { useEffect, useState } from "react";
-import { api } from "@/api/appointmentApi";
 import type { Appointment } from "@/data/mockData";
 
 interface ExceptionQueueProps {
+  appointments: Appointment[];
   onResolve: (id: string) => void;
 }
 
-export function ExceptionQueue({ onResolve }: ExceptionQueueProps) {
-  const [escalated, setEscalated] = useState<Appointment[]>([]);
-
-  useEffect(() => {
-    api.getExceptions().then(setEscalated).catch(() => {});
-    const id = setInterval(() => {
-      api.getExceptions().then(setEscalated).catch(() => {});
-    }, 3000);
-    return () => clearInterval(id);
-  }, []);
+export function ExceptionQueue({ appointments: escalated, onResolve }: ExceptionQueueProps) {
 
   if (escalated.length === 0) {
     return (

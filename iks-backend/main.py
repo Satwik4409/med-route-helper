@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -5,8 +7,7 @@ from typing import Optional
 import sqlite3
 import json
 import math
-import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 app = FastAPI(title="IKS Health - Agentic Workflow API")
 
@@ -75,52 +76,55 @@ def make_stages():
     ]
 
 
+@contextmanager
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 def init_db():
-    db = get_db()
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS appointments (
-            id TEXT PRIMARY KEY,
-            patient_name TEXT NOT NULL,
-            specialty TEXT NOT NULL,
-            urgency TEXT NOT NULL,
-            denial_risk REAL NOT NULL,
-            age_in_queue INTEGER NOT NULL,
-            priority_score REAL NOT NULL,
-            priority_label TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'NOT_STARTED',
-            stages TEXT NOT NULL,
-            agent_log TEXT NOT NULL DEFAULT '[]',
-            resolved_by TEXT,
-            resolved_at TEXT,
-            created_at TEXT NOT NULL
-        )
-    """)
-    db.commit()
-
-    count = db.execute("SELECT COUNT(*) FROM appointments").fetchone()[0]
-    if count == 0:
-        for a in MOCK_APPOINTMENTS:
-            score = calc_priority_score(a["urgency"], a["denial_risk"], a["age_in_queue"])
-            label = calc_priority_label(score)
-            stages = make_stages()
-            db.execute("""
-                INSERT INTO appointments
-                (id, patient_name, specialty, urgency, denial_risk, age_in_queue,
-                 priority_score, priority_label, status, stages, agent_log, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'NOT_STARTED', ?, '[]', ?)
-            """, (
-                a["id"], a["patient_name"], a["specialty"], a["urgency"],
-                a["denial_risk"], a["age_in_queue"], score, label,
-                json.dumps(stages), datetime.utcnow().isoformat()
-            ))
+    with get_db() as db:
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS appointments (
+                id TEXT PRIMARY KEY,
+                patient_name TEXT NOT NULL,
+                specialty TEXT NOT NULL,
+                urgency TEXT NOT NULL,
+                denial_risk REAL NOT NULL,
+                age_in_queue INTEGER NOT NULL,
+                priority_score REAL NOT NULL,
+                priority_label TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'NOT_STARTED',
+                stages TEXT NOT NULL,
+                agent_log TEXT NOT NULL DEFAULT '[]',
+                resolved_by TEXT,
+                resolved_at TEXT,
+                created_at TEXT NOT NULL
+            )
+        """)
         db.commit()
-    db.close()
+
+        count = db.execute("SELECT COUNT(*) FROM appointments").fetchone()[0]
+        if count == 0:
+            for a in MOCK_APPOINTMENTS:
+                score = calc_priority_score(a["urgency"], a["denial_risk"], a["age_in_queue"])
+                label = calc_priority_label(score)
+                stages = make_stages()
+                db.execute("""
+                    INSERT INTO appointments
+                    (id, patient_name, specialty, urgency, denial_risk, age_in_queue,
+                     priority_score, priority_label, status, stages, agent_log, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'NOT_STARTED', ?, '[]', ?)
+                """, (
+                    a["id"], a["patient_name"], a["specialty"], a["urgency"],
+                    a["denial_risk"], a["age_in_queue"], score, label,
+                    json.dumps(stages), datetime.now(timezone.utc).isoformat()
+                ))
+            db.commit()
 
 
 init_db()
@@ -166,7 +170,6 @@ def get_appointments(
     status:    Optional[str] = None,
     sort_by:   Optional[str] = "priority_score",
 ):
-    db = get_db()
     query = "SELECT * FROM appointments WHERE 1=1"
     params = []
 
@@ -187,28 +190,26 @@ def get_appointments(
     }
     query += f" ORDER BY {sort_map.get(sort_by, 'priority_score DESC')}"
 
-    rows = db.execute(query, params).fetchall()
-    db.close()
+    with get_db() as db:
+        rows = db.execute(query, params).fetchall()
     return [row_to_dict(r) for r in rows]
 
 
 @app.get("/exceptions")
 def get_exceptions():
-    db = get_db()
-    rows = db.execute(
-        "SELECT * FROM appointments WHERE status = 'ESCALATED' ORDER BY priority_score DESC"
-    ).fetchall()
-    db.close()
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM appointments WHERE status = 'ESCALATED' ORDER BY priority_score DESC"
+        ).fetchall()
     return [row_to_dict(r) for r in rows]
 
 
 @app.get("/stats")
 def get_stats():
-    db = get_db()
-    rows = db.execute(
-        "SELECT status, COUNT(*) as count FROM appointments GROUP BY status"
-    ).fetchall()
-    db.close()
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT status, COUNT(*) as count FROM appointments GROUP BY status"
+        ).fetchall()
     stats = {r["status"]: r["count"] for r in rows}
     return {
         "total":       sum(stats.values()),
@@ -223,23 +224,21 @@ def get_stats():
 # matches the static path before treating "reset-all" as an id.
 @app.post("/appointments/reset-all")
 def reset_all():
-    db = get_db()
     stages = make_stages()
-    db.execute(
-        "UPDATE appointments SET status='NOT_STARTED', stages=?, agent_log='[]', "
-        "resolved_by=NULL, resolved_at=NULL",
-        (json.dumps(stages),),
-    )
-    db.commit()
-    db.close()
+    with get_db() as db:
+        db.execute(
+            "UPDATE appointments SET status='NOT_STARTED', stages=?, agent_log='[]', "
+            "resolved_by=NULL, resolved_at=NULL",
+            (json.dumps(stages),),
+        )
+        db.commit()
     return {"ok": True}
 
 
 @app.get("/appointments/{apt_id}")
 def get_appointment(apt_id: str):
-    db = get_db()
-    row = db.execute("SELECT * FROM appointments WHERE id = ?", (apt_id,)).fetchone()
-    db.close()
+    with get_db() as db:
+        row = db.execute("SELECT * FROM appointments WHERE id = ?", (apt_id,)).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Appointment not found")
     return row_to_dict(row)
@@ -247,78 +246,74 @@ def get_appointment(apt_id: str):
 
 @app.patch("/appointments/{apt_id}")
 def update_appointment(apt_id: str, data: UpdateAppointmentRequest):
-    db = get_db()
-    row = db.execute("SELECT * FROM appointments WHERE id = ?", (apt_id,)).fetchone()
-    if not row:
-        db.close()
-        raise HTTPException(status_code=404, detail="Appointment not found")
+    with get_db() as db:
+        row = db.execute("SELECT * FROM appointments WHERE id = ?", (apt_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Appointment not found")
 
-    updates = {}
-    if data.status is not None:
-        updates["status"] = data.status.upper().replace(" ", "_")
-    if data.stages is not None:
-        updates["stages"] = json.dumps(data.stages)
-    if data.agent_log is not None:
-        updates["agent_log"] = json.dumps(data.agent_log)
+        updates = {}
+        if data.status is not None:
+            updates["status"] = data.status.upper().replace(" ", "_")
+        if data.stages is not None:
+            updates["stages"] = json.dumps(data.stages)
+        if data.agent_log is not None:
+            updates["agent_log"] = json.dumps(data.agent_log)
 
-    if updates:
-        set_clause = ", ".join(f"{k} = ?" for k in updates)
-        db.execute(
-            f"UPDATE appointments SET {set_clause} WHERE id = ?",
-            list(updates.values()) + [apt_id],
-        )
-        db.commit()
+        if updates:
+            set_clause = ", ".join(f"{k} = ?" for k in updates)
+            db.execute(
+                f"UPDATE appointments SET {set_clause} WHERE id = ?",
+                list(updates.values()) + [apt_id],
+            )
+            db.commit()
 
-    row = db.execute("SELECT * FROM appointments WHERE id = ?", (apt_id,)).fetchone()
-    db.close()
+        row = db.execute("SELECT * FROM appointments WHERE id = ?", (apt_id,)).fetchone()
     return row_to_dict(row)
 
 
 @app.post("/appointments/{apt_id}/resolve")
 def resolve_appointment(apt_id: str, data: ResolveRequest):
-    db = get_db()
-    row = db.execute("SELECT * FROM appointments WHERE id = ?", (apt_id,)).fetchone()
-    if not row:
-        db.close()
-        raise HTTPException(status_code=404, detail="Appointment not found")
+    with get_db() as db:
+        row = db.execute("SELECT * FROM appointments WHERE id = ?", (apt_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Appointment not found")
 
-    apt = row_to_dict(row)
-    stages = apt["stages"]
-    agent_log = apt["agent_log"]
+        apt = row_to_dict(row)
+        stages = apt["stages"]
+        agent_log = apt["agent_log"]
 
-    # Mark the escalated stage complete server-side
-    for stage in stages:
-        if stage["status"] == "ESCALATE":
-            stage["status"] = "COMPLETE"
-            stage["escalation_reason"] = None
-            break
+        for stage in stages:
+            if stage["status"] == "ESCALATE":
+                stage["status"] = "COMPLETE"
+                stage["escalation_reason"] = None
+                break
 
-    agent_log.append(
-        f"{datetime.now().strftime('%I:%M:%S %p')} — Human resolved by {data.resolved_by}: {data.notes}"
-    )
+        agent_log.append({
+            "time": datetime.now().strftime("%I:%M:%S %p"),
+            "text": f"Exception resolved by {data.resolved_by}: {data.notes}",
+            "kind": "info",
+        })
 
-    db.execute(
-        """UPDATE appointments
-           SET status='PROCESSING', stages=?, agent_log=?, resolved_by=?, resolved_at=?
-           WHERE id=?""",
-        (json.dumps(stages), json.dumps(agent_log),
-         data.resolved_by, datetime.utcnow().isoformat(), apt_id),
-    )
-    db.commit()
-    row = db.execute("SELECT * FROM appointments WHERE id = ?", (apt_id,)).fetchone()
-    db.close()
+        db.execute(
+            """UPDATE appointments
+               SET status='PROCESSING', stages=?, agent_log=?, resolved_by=?, resolved_at=?
+               WHERE id=?""",
+            (json.dumps(stages), json.dumps(agent_log),
+             data.resolved_by, datetime.now(timezone.utc).isoformat(), apt_id),
+        )
+        db.commit()
+        row = db.execute("SELECT * FROM appointments WHERE id = ?", (apt_id,)).fetchone()
     return row_to_dict(row)
 
 
 @app.post("/appointments/{apt_id}/reset")
 def reset_appointment(apt_id: str):
-    db = get_db()
     stages = make_stages()
-    db.execute(
-        "UPDATE appointments SET status='NOT_STARTED', stages=?, agent_log='[]', "
-        "resolved_by=NULL, resolved_at=NULL WHERE id=?",
-        (json.dumps(stages), apt_id),
-    )
-    db.commit()
-    db.close()
+    with get_db() as db:
+        db.execute(
+            "UPDATE appointments SET status='NOT_STARTED', stages=?, agent_log='[]', "
+            "resolved_by=NULL, resolved_at=NULL WHERE id=?",
+            (json.dumps(stages), apt_id),
+        )
+        db.commit()
     return {"ok": True}

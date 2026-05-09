@@ -25,7 +25,7 @@
 
 A full-stack prototype simulating an AI agent pipeline for medical appointment processing.
 
-**Stack:** React 18 + Vite + Tailwind · FastAPI · SQLite
+**Stack:** React 19 + Vite + Tailwind · FastAPI · SQLite
 
 ---
 
@@ -259,7 +259,7 @@ Wait for ESCALATE, go to Exception Queue, resolve with notes, watch pipeline res
 ## Tech Details
 
 ### Frontend
-- **Framework:** React 18 + TanStack Router
+- **Framework:** React 19 + TanStack Router
 - **Build:** Vite
 - **Styling:** Tailwind CSS
 - **Components:** shadcn/ui (Radix primitives)
@@ -268,7 +268,7 @@ Wait for ESCALATE, go to Exception Queue, resolve with notes, watch pipeline res
 ### Backend
 - **Framework:** FastAPI
 - **Database:** SQLite (easily migrated to Postgres)
-- **CORS:** Enabled for all origins (demo only)
+- **CORS:** Restricted to known origins (Vercel + localhost)
 - **Priority Calculation:** Real-time score on every fetch
 
 ### Engine
@@ -326,7 +326,7 @@ VITE_API_URL=http://localhost:8000
 
 For production Vercel deployment:
 ```
-VITE_API_URL=https://your-api.example.com
+VITE_API_URL=https://med-route-helper.onrender.com
 ```
 
 ---

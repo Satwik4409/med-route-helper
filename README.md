@@ -122,20 +122,54 @@ Pipeline resumes from next stage
 
 ## Facade Design Decisions
 
-| Decision | Choice | Reason |
-|---|---|---|
-| Agent execution | Frontend mock (setTimeout) | Demo context, no infra needed |
-| Database | SQLite | Zero config, identical schema to Postgres |
-| Parallel stages | Promise.all | Mirrors production asyncio.gather |
-| Resume behavior | Next stage after escalated | Cleaner demo, shows HITL correctly |
-| Parallel escalation | Both stop | Can't score denial risk with incomplete auth |
-| State sync | PATCH on every stage | Backend always reflects real state |
+### Agent Execution — Frontend mock (setTimeout)
+Production uses real payer API calls (X12 270/271, REST). The facade simulates 1–2s latency with 15% escalation rate using `setTimeout` in the browser. No infra needed — the demo shows the full pipeline behaviour without requiring live payer credentials.
 
-**Why These Choices:**
-- **Frontend mocks:** Production uses actual APIs (X12, payer gateways). Frontend mocks simulate 1-2s latency with 15% escalation rate.
-- **SQLite → Postgres:** Schema is identical. Migration requires only connection string change + `alembic upgrade head`.
-- **Promise.all:** In production, `asyncio.gather()` on worker nodes. Same semantics.
-- **Resume from next stage:** If Stage 3 escalated, Stage 4 already ran (parallel). Resume at Stage 5, not Stage 3.
+**Tradeoff:** Not a real agent. But the pipeline logic (dependency order, parallel execution, HITL pause/resume) is identical to what LangGraph would run in production.
+
+### Database — SQLite
+Zero config, no server, one file. Schema is identical to Postgres — migration is just a connection string change + `alembic upgrade head`. Appointments are pre-seeded at startup via `init_db()`.
+
+**Tradeoff:** No concurrent writes, no replication. Fine at <100/hr. Beyond that, switch to Postgres + Redis.
+
+### Parallel Stages — Promise.all
+Stages 3+4 (Prior Auth + Provider Matching) run simultaneously. Both depend on Stage 2 (Eligibility) output but are independent of each other — real dependency DAG, not a flat chain.
+
+**If either escalates:** Both stop. Stage 5 (Denial Risk Scoring) needs complete auth AND provider data. Incomplete input = escalate, not guess.
+
+**Tradeoff:** `Promise.all` in browser mirrors `asyncio.gather()` on production worker nodes. Same semantics, different runtime.
+
+### Resume Behavior — Next stage after escalated
+If Stage 3 escalates, Stage 4 already ran (parallel). Human resolves Stage 3 → pipeline resumes at Stage 5, not Stage 3. Re-running Stage 4 would be wasted work.
+
+### State Sync — PATCH on every stage change
+Frontend fires `syncAppointment()` after every state update. Backend always reflects real state.
+
+**Tradeoff:** Chatty — one full pipeline run = ~12 PATCH calls. In production you'd use events or batch updates. Acceptable for a facade with 8 appointments.
+
+### UI/UX — What was built and why
+
+| What | Why |
+|------|-----|
+| Priority score on every card | Staff sees who to process first without clicking in |
+| STAT/HIGH badges in red | Visual urgency — zero cognitive load |
+| Pipeline modal with per-stage progress | Shows agent doing real work, not a spinner |
+| Exception Queue as separate view | Escalations stay visible — staff don't miss them |
+| Parallel stages shown side-by-side | Visually communicates simultaneous execution |
+| Agent log with timestamps | Audit trail visible to the human resolving it |
+
+**Polling vs WebSockets:** Real-time updates poll every 3s. WebSockets are more efficient but add infra complexity. For a facade, polling is the right tradeoff. Production would use WebSockets or SSE.
+
+### Facade vs Production
+
+| Facade | Production |
+|--------|------------|
+| setTimeout in browser | Real payer API calls (X12, REST) |
+| SQLite | PostgreSQL + Redis |
+| No queue | Redis ZADD/ZPOPMAX — atomic, no race condition |
+| Promise.all in browser | asyncio.gather on worker nodes |
+| No checkpointing | PostgresSaver — resume after server crash |
+| No orchestration | LangGraph StateGraph |
 
 ---
 

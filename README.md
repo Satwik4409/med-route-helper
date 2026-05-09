@@ -62,6 +62,20 @@ score = urgency(0.5) + denial_risk×10(0.3) + log(1+wait)(0.2)
 
 **Design Rationale:** Log scale on wait time prevents aging from dominating urgent cases. A 200-minute-old routine appointment gets ~0.4 boost, while a 15-minute STAT stays top priority.
 
+**Why high denial risk increases priority (not decreases):**
+High denial risk means the claim is likely to be rejected by the payer — exactly the cases that need human intervention earliest. Surfacing them first allows staff to fix documentation, submit prior auth, or escalate before the claim is denied. This is IKS's "preactive RCM" model: catch it before submission, not after rejection.
+
+**New patient edge case (no claims history):**
+New patients have no denial risk history so `denial_risk` defaults to `0.0`. They are still processed based on urgency and wait time — they just don't receive the denial risk boost. As they accumulate claims history, the ML model fills in a real score.
+
+```
+New STAT patient, 15 min wait, no history:
+score = 10×0.5 + 0.0×10×0.3 + log(16)×0.2 = 5.55 → MEDIUM
+
+Emily Davis, STAT, denial_risk 0.91:
+score = 10×0.5 + 0.91×10×0.3 + log(16)×0.2 = 8.28 → HIGH
+```
+
 ---
 
 ## HITL (Human-in-the-Loop) Flow

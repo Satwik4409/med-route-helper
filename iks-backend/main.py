@@ -58,7 +58,10 @@ MOCK_APPOINTMENTS = [
 
 def calc_priority_score(urgency, denial_risk, age_in_queue):
     u = URGENCY_SCORE.get(urgency, 3)
-    return round(u * 0.5 + denial_risk * 10 * 0.3 + math.log(1 + age_in_queue) * 0.2, 2)
+    # New patients have no claims history — default to 0.0 so they still get
+    # processed based on urgency and wait time, just without the denial risk boost.
+    risk = denial_risk if denial_risk is not None else 0.0
+    return round(u * 0.5 + risk * 10 * 0.3 + math.log(1 + age_in_queue) * 0.2, 2)
 
 
 def calc_priority_label(score):

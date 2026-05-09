@@ -49,6 +49,29 @@ A full-stack prototype simulating an AI agent pipeline for medical appointment p
 
 **Parallel Execution:** Stages 3+4 run simultaneously — independent after Stage 2.
 
+**Dependency DAG:**
+```
+         [1. Patient Identity]
+                  ↓
+         [2. Insurance Eligibility]
+                  ↓
+        ┌─────────┴──────────┐
+        ↓                    ↓
+[3. Prior Auth]     [4. Provider Matching]
+        └─────────┬──────────┘
+                  ↓
+         [5. Denial Risk Scoring]
+                  ↓
+         [6. Final Clearance]
+```
+
+Why this DAG:
+- Stage 3 needs Stage 2 output — can't request prior auth without confirmed coverage
+- Stage 4 needs Stage 2 output — can't match provider without knowing network status
+- Stage 3 and Stage 4 do NOT need each other → run in parallel
+- Stage 5 needs BOTH Stage 3 and Stage 4 complete — can't score denial risk with incomplete auth or no provider
+- If either Stage 3 or Stage 4 escalates → both stop → Stage 5 never runs
+
 ---
 
 ## Priority Scoring

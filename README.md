@@ -255,6 +255,38 @@ Built-in features matter:
 - Conditional edges → dynamic routing
 - PostgresSaver → immutable audit trail
 
+### Why LLM only at Stage 5
+
+Stages 1, 2, 3, 4, 6 have deterministic answers — insurance is either active or not, a patient either exists or doesn't. LLMs are probabilistic. You don't want a model "predicting" whether insurance is active — you want a direct API call to the payer.
+
+Stage 5 is different. XGBoost gives a number (0.91) — that alone isn't useful to a human reviewer. The LLM translates it into an actionable reason:
+
+```
+XGBoost → 0.91
+LLM     → "Aetna has denied CPT 27447 in 38% of cases without
+           pre-op imaging documentation. Attach radiology report."
+```
+
+LLM handles only the explanation layer. Every clinical decision is deterministic.
+
+### Why XGBoost for Denial Risk
+
+Claims data is tabular (payer, procedure code, diagnosis, patient demographics, prior outcomes). XGBoost is best in class for tabular data — fast, interpretable, and accurate. It's pre-trained on historical claims data and scores a new claim in milliseconds.
+
+In production, IKS already has this via their Sift Healthcare acquisition. In the facade, it's mocked as a 15% random escalation rate — matching Cohere Health's production ratio of 85% real-time approval.
+
+### Why Redis for Queue but Postgres for Checkpoints
+
+```
+Redis                           PostgresSaver
+─────────────────────────       ─────────────────────────
+In-memory → fast                Disk → durable
+Server restart → data gone      Server restart → data survives
+Right for: what to process next Right for: what already happened
+```
+
+Different jobs, different tools. Redis holds the queue. Postgres holds the history.
+
 ### Why Async for Agents
 
 Payer APIs are I/O bound (1-20 seconds each).
@@ -443,10 +475,24 @@ MIT
 
 ---
 
-## Contact & Feedback
+## Product Mindset — Why These Decisions Map to IKS's Business
 
-Built as a prototype for agentic medical workflow systems. Questions? Reach out via GitHub Issues.
+This queue is not about patient care priority — that's the doctor's decision, already made. This is about **claims processing priority** — which appointment file needs human attention before it gets denied and the hospital loses revenue.
+
+| Decision | IKS Business Reason |
+|----------|-------------------|
+| High denial risk = process first | Catch before submission, not after rejection — IKS's "preactive RCM" model |
+| 85% auto-approve target | Matches Cohere Health's production ratio — realistic HITL benchmark |
+| CMS-0057-F SLAs in priority formula | 72hr urgent / 7-day routine PA deadlines baked in — compliance by design |
+| Exception Queue separated from dashboard | The 15% that escalate are the ones costing clients money — can't be missed |
+| LLM only at explanation layer | Staff need to know what to fix, not just that a claim is high risk |
 
 ---
 
-**Last Updated:** May 7, 2026
+## GenAI Usage
+
+Claude Code was used as a pair programmer throughout this project. All architectural decisions — dependency DAG, priority formula, HITL flow, production design — were made independently. Claude assisted with implementation speed. Every line of code can be explained in detail.
+
+---
+
+**Last Updated:** May 9, 2026

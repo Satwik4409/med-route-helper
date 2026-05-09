@@ -269,7 +269,7 @@ Wait for ESCALATE, go to Exception Queue, resolve with notes, watch pipeline res
 - **Framework:** FastAPI
 - **Database:** SQLite (easily migrated to Postgres)
 - **CORS:** Restricted to known origins (Vercel + localhost)
-- **Priority Calculation:** Real-time score on every fetch
+- **Priority Calculation:** Computed once at seed time, stored as a column in SQLite
 
 ### Engine
 - **Workflow:** Sequential + parallel stages

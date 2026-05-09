@@ -94,6 +94,32 @@ Pipeline resumes from next stage
 
 ---
 
+## Facade Architecture
+
+```
+┌─────────────────────────────────┐       ┌──────────────────────┐
+│         Browser (React)         │       │   FastAPI (Render)   │
+│                                 │       │                      │
+│  Dashboard → clicks "Start"     │       │  GET  /appointments  │
+│  workflowEngine.ts runs         │◄─────►│  PATCH /apts/{id}    │
+│  pipeline (setTimeout mocks)    │       │  POST /apts/{id}/    │
+│  syncAppointment() after        │       │       resolve        │
+│  every stage change             │       │  GET  /exceptions    │
+│                                 │       │  GET  /stats         │
+└─────────────────────────────────┘       └──────────┬───────────┘
+                                                     │
+                                          ┌──────────▼───────────┐
+                                          │     SQLite (iks.db)  │
+                                          │                      │
+                                          │  1 table             │
+                                          │  8 rows (seeded)     │
+                                          │  stages as JSON col  │
+                                          │  agent_log as JSON   │
+                                          └──────────────────────┘
+```
+
+**The key point:** Pipeline logic runs entirely in the browser. The backend is a persistence layer — it stores what the browser tells it happened. No agent execution on the server.
+
 ## Facade Design Decisions
 
 | Decision | Choice | Reason |

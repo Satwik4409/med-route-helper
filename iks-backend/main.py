@@ -134,6 +134,18 @@ def row_to_dict(row):
     d = dict(row)
     d["stages"] = json.loads(d["stages"])
     d["agent_log"] = json.loads(d["agent_log"])
+
+    # Recalculate priority score on every read using actual time in queue.
+    # age_in_queue is the seed value (minutes already waiting at startup).
+    # We add minutes elapsed since created_at so the score grows as appointments wait.
+    created_at = datetime.fromisoformat(d["created_at"])
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    elapsed_minutes = (datetime.now(timezone.utc) - created_at).total_seconds() / 60
+    actual_wait = d["age_in_queue"] + elapsed_minutes
+    d["priority_score"] = calc_priority_score(d["urgency"], d["denial_risk"], actual_wait)
+    d["priority_label"] = calc_priority_label(d["priority_score"])
+
     return d
 
 

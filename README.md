@@ -47,6 +47,15 @@ A full-stack prototype simulating an AI agent pipeline for medical appointment p
         APPOINTMENT CONFIRMED ✅
 ```
 
+| Stage | Agent | What it does |
+|-------|-------|-------------|
+| 1 | Patient Identity | Does this patient exist? Duplicate MRN? Wrong DOB? Catches data errors before anything else runs. |
+| 2 | Insurance Eligibility | Is their insurance active? X12 270 = ask payer. X12 271 = payer responds. Coverage terminated = escalate. |
+| 3 | Prior Authorization | Does the payer approve this procedure? Most denials happen here. PEND status = escalate for clinical notes. |
+| 4 | Provider Matching | Is there an in-network doctor available? No slots = escalate. Runs parallel with Stage 3 — both need eligibility, neither needs each other. |
+| 5 | Denial Risk Scoring | XGBoost predicts denial probability from claims history. LLM explains why in plain English for the human reviewer. |
+| 6 | Final Clearance | All 5 checks passed. Rules engine confirms billing codes, documentation complete. Hands off to billing. |
+
 **Parallel Execution:** Stages 3+4 run simultaneously — independent after Stage 2.
 
 **Dependency DAG:**

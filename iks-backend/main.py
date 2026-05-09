@@ -197,17 +197,22 @@ def get_appointments(
     if status and status != "All":
         query += " AND status = ?";    params.append(status.upper().replace(" ", "_"))
 
-    sort_map = {
-        "priority_score": "priority_score DESC",
-        "urgency":        "CASE urgency WHEN 'STAT' THEN 1 WHEN 'Urgent' THEN 2 ELSE 3 END",
-        "denial_risk":    "denial_risk DESC",
-        "wait_time":      "age_in_queue DESC",
-    }
-    query += f" ORDER BY {sort_map.get(sort_by, 'priority_score DESC')}"
-
     with get_db() as db:
         rows = db.execute(query, params).fetchall()
-    return [row_to_dict(r) for r in rows]
+
+    results = [row_to_dict(r) for r in rows]
+
+    # Sort in Python after row_to_dict so ordering uses the freshly recalculated
+    # priority_score (not the stale stored value). Tiebreaker is age_in_queue DESC
+    # so the longest-waiting appointment wins when scores are equal.
+    sort_key = {
+        "priority_score": lambda r: (-r["priority_score"], -r["age_in_queue"]),
+        "urgency":        lambda r: ({"STAT": 1, "Urgent": 2}.get(r["urgency"], 3), -r["age_in_queue"]),
+        "denial_risk":    lambda r: (-r["denial_risk"], -r["age_in_queue"]),
+        "wait_time":      lambda r: (-r["age_in_queue"], -r["priority_score"]),
+    }
+    results.sort(key=sort_key.get(sort_by, sort_key["priority_score"]))
+    return results
 
 
 @app.get("/exceptions")
